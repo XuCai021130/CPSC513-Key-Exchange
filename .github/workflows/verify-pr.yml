@@ -21,13 +21,25 @@ jobs:
       - name: Get changed files
         id: changed-files
         run: |
-          ALL_FILES=$(git diff --name-only --diff-filter=AM ${{ github.event.pull_request.base.sha }} ${{ github.sha }})
+          # Only allow new files (A), not modifications (M) or deletions (D)
+          ADDED_FILES=$(git diff --name-only --diff-filter=A ${{ github.event.pull_request.base.sha }} ${{ github.sha }})
+          
+          # Check for disallowed operations
+          MODIFIED=$(git diff --name-only --diff-filter=M ${{ github.event.pull_request.base.sha }} ${{ github.sha }})
+          DELETED=$(git diff --name-only --diff-filter=D ${{ github.event.pull_request.base.sha }} ${{ github.sha }})
+          
+          if [ -n "$MODIFIED" ] || [ -n "$DELETED" ]; then
+            echo "❌ Only adding new files is allowed"
+            [ -n "$MODIFIED" ] && echo "Modified: $MODIFIED"
+            [ -n "$DELETED" ] && echo "Deleted: $DELETED"
+            exit 1
+          fi
+          
           echo "all_files<<EOF" >> $GITHUB_OUTPUT
-          echo "$ALL_FILES" >> $GITHUB_OUTPUT
+          echo "$ADDED_FILES" >> $GITHUB_OUTPUT
           echo "EOF" >> $GITHUB_OUTPUT
           
-          # Filter for keys/*.asc
-          KEY_FILES=$(echo "$ALL_FILES" | grep '^keys/.*\.asc$' || true)
+          KEY_FILES=$(echo "$ADDED_FILES" | grep '^keys/.*\.asc$' || true)
           echo "key_files<<EOF" >> $GITHUB_OUTPUT
           echo "$KEY_FILES" >> $GITHUB_OUTPUT
           echo "EOF" >> $GITHUB_OUTPUT
